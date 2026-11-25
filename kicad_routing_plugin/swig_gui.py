@@ -1674,6 +1674,15 @@ class RoutingDialog(wx.Dialog):
             "default: a 147-board corpus A/B measured smoothing ON at 129 incomplete "
             "nets and OFF at 149, so disabling it costs ~20 nets. Uncheck only to A/B.")
         options_inner.Add(self.smoothing, 0, wx.ALL, 3)
+        # Nets above 400 segments are skipped by smoothing unless this is on
+        # (route.py --smooth-large-nets), OFF by default. Named after the param.
+        self.smooth_large_nets = wx.CheckBox(options_scroll, label="Smooth large nets")
+        self.smooth_large_nets.SetValue(False)
+        self.smooth_large_nets.SetToolTip(
+            "Also smooth nets above 400 segments, with one connectivity check for the "
+            "whole net (route.py --smooth-large-nets). Off by default: such a net is "
+            "skipped. Needs 'Smooth routes'.")
+        options_inner.Add(self.smooth_large_nets, 0, wx.ALL, 3)
 
         # 45-degree corners (route.py --chamfer-corners), OFF by default. Named
         # `chamfer_corners` to match the engine param.
@@ -3140,6 +3149,7 @@ class RoutingDialog(wx.Dialog):
         self.keep_input_copper.SetValue(False)
         self.smoothing.SetValue(True)
         self.chamfer_corners.SetValue(False)
+        self.smooth_large_nets.SetValue(False)
         self.mps_segment_intersection.SetValue(False)
         self.bus_enabled.SetValue(False)
         self.bus_detection_radius.SetValue(defaults.BUS_DETECTION_RADIUS)
@@ -3583,6 +3593,7 @@ class RoutingDialog(wx.Dialog):
             'keep_input_copper': self.keep_input_copper.GetValue(),
             'smoothing': self.smoothing.GetValue(),
             'chamfer_corners': self.chamfer_corners.GetValue(),
+            'smooth_large_nets': self.smooth_large_nets.GetValue(),
             'force_reroute': self.force_reroute.GetValue(),
             'mps_segment_intersection': self.mps_segment_intersection.GetValue(),
             # Bus routing options
@@ -4143,6 +4154,7 @@ class RoutingDialog(wx.Dialog):
                     keep_input_copper=config.get('keep_input_copper', False),
                     smoothing=config.get('smoothing', True),
                     chamfer_corners=config.get('chamfer_corners', False),
+                    smooth_large_nets=config.get('smooth_large_nets', False),
                     mps_segment_intersection=config.get('mps_segment_intersection', False),
                     bus_enabled=config.get('bus_enabled', False),
                     bus_detection_radius=config.get('bus_detection_radius', 5.0),

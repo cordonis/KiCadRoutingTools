@@ -5927,7 +5927,8 @@ def smooth_octolinear_chains(results, pcb_data: PCBData, scope_net_ids=None,
                              max_net_segs: int = 400,
                              max_chain_segs: int = 100,
                              chamfer_corners: bool = False,
-                             chamfer_leg: float = 0.5):
+                             chamfer_leg: float = 0.5,
+                             smooth_large_nets: bool = False):
     """Collapse grid-A* staircase micro-jogs into octolinear shortcuts (#536).
 
     With ``chamfer_corners`` this call smooths nothing and cuts 90-degree
@@ -5976,7 +5977,8 @@ def smooth_octolinear_chains(results, pcb_data: PCBData, scope_net_ids=None,
 
     Per net, the result is committed only if check_net_connectivity does not
     grade it worse than the original: after every chain on a net of up to
-    max_net_segs segments, and once for the whole net above that (the
+    max_net_segs segments. A net above that is skipped (nets_skipped_large),
+    unless smooth_large_nets: then it is checked once for the whole net (the
     per-chain check is a full-net connectivity pass, so per chain it grows
     with the square of the net; a net whose whole result grades worse keeps
     its copper as it came). The guard runs WITHOUT pour credit:
@@ -6535,8 +6537,6 @@ def smooth_octolinear_chains(results, pcb_data: PCBData, scope_net_ids=None,
     stats = {'nets': 0, 'nets_skipped_large': 0, 'chains': 0, 'spans': 0,
              'segs_removed': 0, 'segs_added': 0, 'saved_mm': 0.0,
              'chains_reverted': 0, 'nets_large': 0, 'nets_reverted_large': 0}
-    # nets_skipped_large stays 0 now (no net is skipped for its size); kept for
-    # readers of these stats
 
     def _commit(removed_chain, new_chain_segs, n_spans, gain):
         """Count one smoothed chain and, unless dry_run, hand its copper to
@@ -6582,11 +6582,15 @@ def smooth_octolinear_chains(results, pcb_data: PCBData, scope_net_ids=None,
             net_segs = segs_by_net[net_id]
             if len(net_segs) < 2:
                 continue
-            # Above max_net_segs a net is still smoothed, with ONE connectivity
+            # Above max_net_segs a net is skipped, unless smooth_large_nets
+            # (--smooth-large-nets): then it is smoothed with ONE connectivity
             # check for the whole net instead of one per chain (see _commit's
-            # callers below). It used to be skipped: a power net tapping many
-            # pads crosses 400 segments mid-run and shipped its staircases.
+            # callers below), so a power net tapping many pads does not ship
+            # its staircases.
             large = len(net_segs) > max_net_segs
+            if large and not smooth_large_nets:
+                stats['nets_skipped_large'] += 1
+                continue
             if large:
                 stats['nets_large'] += 1
             stats['nets'] += 1

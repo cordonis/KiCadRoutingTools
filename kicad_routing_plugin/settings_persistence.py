@@ -140,6 +140,7 @@ def get_dialog_settings(dialog):
         'keep_input_copper': dialog.keep_input_copper.GetValue(),
         'smoothing': dialog.smoothing.GetValue(),
         'chamfer_corners': dialog.chamfer_corners.GetValue(),
+        'smooth_large_nets': dialog.smooth_large_nets.GetValue(),
         'force_reroute': dialog.force_reroute.GetValue(),
         'mps_segment_intersection': dialog.mps_segment_intersection.GetValue(),
         'no_crossing_layer_check': dialog.no_crossing_layer_check.GetValue(),
@@ -550,6 +551,8 @@ def restore_dialog_settings(dialog, settings):
         dialog.smoothing.SetValue(settings['smoothing'])
     if 'chamfer_corners' in settings:
         dialog.chamfer_corners.SetValue(settings['chamfer_corners'])
+    if 'smooth_large_nets' in settings:   # absent before the checkbox: stays off
+        dialog.smooth_large_nets.SetValue(settings['smooth_large_nets'])
     if 'force_reroute' in settings:
         dialog.force_reroute.SetValue(settings['force_reroute'])
     if 'mps_segment_intersection' in settings:
