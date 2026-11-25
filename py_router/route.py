@@ -8357,7 +8357,8 @@ def batch_route(input_file: str, output_file: str, net_names: List[str],
                         config.clearance, config.grid_step,
                         config.board_edge_clearance,
                         # the route step's 45-degree corners, as the engine leg
-                        chamfer_corners=smoothing and chamfer_corners)
+                        chamfer_corners=smoothing and chamfer_corners,
+                        smooth_large_nets=smooth_large_nets)
                     print(f"  [finalize timing] cleanup leg: "
                           f"{_time9.time() - _t9:.1f}s")
                     if _cs or _cr:
@@ -11211,8 +11212,10 @@ For differential pair routing, use route_diff.py:
                              "default; --no-smoothing also skips it.")
     parser.add_argument("--smooth-large-nets", action="store_true",
                         help="Also smooth nets above 400 segments, with one connectivity check "
-                             "for the whole net instead of one per chain. Off by default: such a "
-                             "net is skipped. Does nothing with --no-smoothing.")
+                             "for the whole net instead of one per chain, and let --chamfer-corners "
+                             "reach them (the route step, the plane finalize and its cleanup). Off "
+                             "by default: such a net is skipped and its corners are counted as "
+                             "'net over size cap'. Does nothing with --no-smoothing.")
     parser.add_argument("--keep-input-copper", action="store_true",
                         help="Treat the input file's own copper as read-only: the post-route "
                              "cleanup passes (dead-end sweep, orphan islands, cycle/redundancy "

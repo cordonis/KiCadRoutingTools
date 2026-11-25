@@ -803,7 +803,9 @@ def run_post_route_cleanup(results, pcb_data, scope_net_ids, config, *,
             net_clearances=_nc, board_edge_clearance=_bec,
             config=config,
             skip_net_ids=_smooth_skip_net_ids(pcb_data),
-            chamfer_corners=True)
+            chamfer_corners=True,
+            # a net above 400 segments: as the smoothing, only with the flag
+            smooth_large_nets=smooth_large_nets)
         counts['corners_chamfered'] = _ch_stats.get('corners_chamfered', 0)
         _ch_left = _ch_stats.get('corners_left') or {}
         counts['corners_left'] = sum(_ch_left.values())

@@ -274,6 +274,58 @@ def test_corner_on_a_large_net_chamfered():
           st.get('corners_chamfered') == 1 and not has_corner(elbow), st)
 
 
+def _large_board():
+    """ELBOW on a net of 452 segments (above max_net_segs, 400). The long run
+    alternates two widths, so the cleanup's collinear merge (#811) cannot join
+    it below the cap before the corner pass."""
+    pcb = board(ELBOW, extra_pads=[BLOCK, _pad('C', 20.0, 40.0, 1, '/SIG'),
+                                   _pad('D', 65.0, 40.0, 1, '/SIG')])
+    pcb.segments += [Segment(start_x=20.0 + 0.1 * i, start_y=40.0, end_x=20.1 + 0.1 * i,
+                             end_y=40.0, width=W if i % 2 else W + 0.05, layer='F.Cu', net_id=1)
+                     for i in range(450)]
+    return pcb
+
+
+def test_large_net_corners_need_the_flag():
+    """Without --smooth-large-nets a net above max_net_segs is skipped by the
+    corner pass as by the smoothing, and its corners are counted as left
+    ('net over size cap'). The flag reaches the route step's cleanup, the
+    plane finalize (its route knobs, its CLI cleanup leg) and repair_planes."""
+    from types import SimpleNamespace
+    from cleanup_pipeline import run_post_route_cleanup
+    from pcb_modification import compute_plane_copper_cleanup
+    from route import _FINALIZE_ROUTE_KNOBS
+    import inspect
+    import repair_planes
+    pcb = _large_board()
+    st = smooth_octolinear_chains([], pcb, clearance=CLR, chamfer_corners=True)[4]
+    elbow = [s for s in pcb.segments if max(s.start_y, s.end_y) < 30.0]
+    check("default: the large net is skipped, its elbow left",
+          st.get('corners_chamfered', 0) == 0 and has_corner(elbow) and st['nets_skipped_large'] == 1, st)
+    check("default: the elbow is counted as 'net over size cap'",
+          (st.get('corners_left') or {}).get('net over size cap') == 1, st.get('corners_left'))
+    for flag in (False, True):
+        pcb = _large_board()
+        out = run_post_route_cleanup(
+            [], pcb, {1}, SimpleNamespace(clearance=CLR, grid_step=0.05, board_edge_clearance=0.0),
+            label='Plane ', phantom=False, via_nudge=False, neck=False,
+            microshift_max_shift=0.05, chamfer_corners=True, smooth_large_nets=flag)
+        n = out.counts.get('corners_chamfered', 0)
+        check(f"cleanup pipeline, smooth_large_nets={flag}: the elbow {'cut' if flag else 'kept'}",
+              n == (1 if flag else 0), n)
+        delta = compute_plane_copper_cleanup(_large_board(), ['/SIG'], CLR, 0.05, 0.0,
+                                             chamfer_corners=True, smooth_large_nets=flag)
+        diag = [c for c in delta.connectors if abs(c.end_x - c.start_x) > 1e-6
+                and abs(c.end_y - c.start_y) > 1e-6]
+        check(f"CLI plane cleanup, smooth_large_nets={flag}: the elbow {'cut' if flag else 'kept'}",
+              bool(diag) == flag, len(diag))
+    check("smooth_large_nets is a route knob of the plane finalize",
+          'smooth_large_nets' in _FINALIZE_ROUTE_KNOBS)
+    src = inspect.getsource(repair_planes)
+    check("repair_planes: --smooth-large-nets, and its route knobs reach the cleanup",
+          '"--smooth-large-nets"' in src and ".get('smooth_large_nets', False)" in src)
+
+
 def _stats(pcb):
     return smooth_octolinear_chains([], pcb, clearance=CLR, chamfer_corners=True)[4]
 
@@ -440,6 +492,7 @@ TESTS = [test_elbow_chamfered, test_off_by_default_in_the_pass, test_foreign_cop
          test_chain_continuing_past_a_short_leg,
          test_via_on_a_cut_piece_blocks, test_keep_away_band, test_corner_pass_smooths_nothing,
          test_plane_finalize_cleanup, test_corner_on_a_large_net_chamfered,
+         test_large_net_corners_need_the_flag,
          test_width_change_cut_at_the_narrower_width,
          test_corners_left_counted_by_reason, test_short_leg_taken_whole,
          test_short_leg_left_when_the_turn_at_its_end_would_not_stay,

@@ -1548,7 +1548,8 @@ class PlaneCleanupDelta(NamedTuple):
 def compute_plane_copper_cleanup(pcb, plane_net_names, clearance: float,
                                  grid_step: float, board_edge_clearance: float,
                                  progress_callback=None,
-                                 chamfer_corners: bool = False) -> "PlaneCleanupDelta":
+                                 chamfer_corners: bool = False,
+                                 smooth_large_nets: bool = False) -> "PlaneCleanupDelta":
     """Board-level core of the plane-copper cleanup (issues #84, #308, #319).
 
     Runs the ONE shared run_post_route_cleanup pipeline the signal fronts use --
@@ -1587,7 +1588,8 @@ def compute_plane_copper_cleanup(pcb, plane_net_names, clearance: float,
         label='Plane ', phantom=False, via_nudge=False, neck=False,
         microshift_max_shift=grid_step,
         progress_callback=progress_callback,
-        chamfer_corners=chamfer_corners)
+        chamfer_corners=chamfer_corners,
+        smooth_large_nets=smooth_large_nets)
     return PlaneCleanupDelta(
         connectors=[s for r in plane_results for s in (r.get('new_segments') or [])],
         segments_to_remove=list(_outcome.input_strip_segments),
@@ -1597,7 +1599,8 @@ def compute_plane_copper_cleanup(pcb, plane_net_names, clearance: float,
 
 def clean_plane_copper(output_file: str, plane_net_names, clearance: float,
                        grid_step: float, board_edge_clearance: float,
-                       chamfer_corners: bool = False) -> Tuple[int, int]:
+                       chamfer_corners: bool = False,
+                       smooth_large_nets: bool = False) -> Tuple[int, int]:
     """FILE front for the plane-copper cleanup: parse the plane tool's OUTPUT
     FILE, compute the cleanup delta via compute_plane_copper_cleanup (the shared
     board-level core), and rewrite the file (stripping removed segments/vias,
@@ -1616,7 +1619,8 @@ def clean_plane_copper(output_file: str, plane_net_names, clearance: float,
         content = f.read()
     delta = compute_plane_copper_cleanup(pcb, plane_net_names, clearance, grid_step,
                                          board_edge_clearance,
-                                         chamfer_corners=chamfer_corners)
+                                         chamfer_corners=chamfer_corners,
+                                         smooth_large_nets=smooth_large_nets)
     if delta.is_empty:
         return 0, 0
 
@@ -6590,6 +6594,12 @@ def smooth_octolinear_chains(results, pcb_data: PCBData, scope_net_ids=None,
             large = len(net_segs) > max_net_segs
             if large and not smooth_large_nets:
                 stats['nets_skipped_large'] += 1
+                if chamfer_corners:
+                    # not looked at: say how many corners that leaves
+                    n90 = _right_angle_vertices(net_segs)
+                    if n90:
+                        corners_left['net over size cap'] = (
+                            corners_left.get('net over size cap', 0) + n90)
                 continue
             if large:
                 stats['nets_large'] += 1
