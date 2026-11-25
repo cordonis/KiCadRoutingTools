@@ -8410,6 +8410,10 @@ def nudge_grazing_vias(results, pcb_data: PCBData, scope_net_ids=None,
                 if p.net_id == v.net_id and not (
                         same_net_pad_clearance > 0 and not getattr(p, 'drill', 0)):
                     continue  # same-net pads only matter under #581 (SMD)
+                if p.net_id == v.net_id:
+                    from obstacle_map import snpc_exposed_pad
+                    if snpc_exposed_pad(p, pcb_data):
+                        continue  # an exposed thermal pad keeps its vias (#487)
                 # EXTENT-aware window (the foreign-long-pad class): a long pad
                 # (BUS/connector finger) reaches into range while its CENTER
                 # sits outside; a center-only test dropped it from worst_gap

@@ -3973,6 +3973,40 @@ def _aperture_keepout_cells(ap, coord: "GridCoord", margin: float) -> "np.ndarra
     return np.concatenate(chunks).astype(np.int32)
 
 
+SNPC_EXPOSED_PAD_MIN_MM = 0.5
+
+
+def snpc_exposed_pad(pad, pcb_data) -> bool:
+    """True for an exposed pad the #581 same-net pad clearance does not keep
+    vias off: its vias connect it to the plane and carry its heat (#487).
+    Exposed pad = an SMD pad with route_planes' is_thermal_pad signature
+    (active part, its largest pad, >= 2.5x the median pad area or an EP
+    footprint name) at SNPC_EXPOSED_PAD_MIN_MM instead of the via-ARRAY floor.
+    Only a pad with no paste of its own qualifies: a pad that carries paste
+    stays kept out whole, and separate paste openings (windowpanes) stay kept
+    out (#962), so an exempt pad's vias never sit under solder. A drilled pad
+    is never one: each call site keeps its own through-hole rule."""
+    if getattr(pad, 'drill', 0):
+        return False
+    if pcb_data is None:
+        return False
+    # The parser keeps a pad's layer names as written: F.Paste, B.Paste (a
+    # bottom-side part), *.Paste (both sides).
+    if any(str(layer).endswith('.Paste') for layer in (getattr(pad, 'layers', None) or ())):
+        return False
+    # is_thermal_pad's footprint-NAME branch (SOIC-8-1EP, SOT-223, TO-252)
+    # passes every pad over the floor; at this floor that includes the leads.
+    # Only the footprint's largest pad can be its exposed pad.
+    fp = getattr(pcb_data, 'footprints', {}).get(getattr(pad, 'component_ref', None))
+    if fp is not None:
+        areas = [p.size_x * p.size_y for p in fp.pads
+                 if getattr(p, 'pad_type', '') != 'np_thru_hole']
+        if areas and pad.size_x * pad.size_y < max(areas) - 1e-9:
+            return False
+    from route_planes import is_thermal_pad
+    return bool(is_thermal_pad(pad, pcb_data, min_mm=SNPC_EXPOSED_PAD_MIN_MM))
+
+
 def paste_keepout_apertures(pcb_data: PCBData, net_id: int):
     """The paste openings a net-`net_id` via must keep out of under
     `--same-net-pad-clearance` (#962).
@@ -4060,7 +4094,7 @@ def same_net_pad_via_keepout_cells(pcb_data: PCBData, net_id: int,
     if len(_ap_cells):
         chunks.append(_ap_cells)
     for pad in (pcb_data.pads_by_net.get(net_id, []) if pads is None else pads):
-        if getattr(pad, 'drill', 0):
+        if getattr(pad, 'drill', 0) or snpc_exposed_pad(pad, pcb_data):
             continue
         gx, gy = coord.to_grid(pad.global_x, pad.global_y)
         hw, hh = pad.size_x / 2, pad.size_y / 2
