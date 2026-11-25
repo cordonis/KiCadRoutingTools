@@ -258,12 +258,25 @@ def test_plane_finalize_cleanup():
               n == (1 if flag else 0) and has_corner(pcb.segments) != flag, n)
 
 
+def test_corner_on_a_large_net_chamfered():
+    """A net above max_net_segs (400) is no longer skipped whole: its corners are
+    cut like any other net's."""
+    pcb = board(ELBOW, extra_pads=[BLOCK, _pad('C', 20.0, 40.0, 1, '/SIG'),
+                                   _pad('D', 65.0, 40.0, 1, '/SIG')])
+    pcb.segments += [Segment(start_x=20.0 + 0.1 * i, start_y=40.0, end_x=20.1 + 0.1 * i,
+                             end_y=40.0, width=W, layer='F.Cu', net_id=1) for i in range(450)]
+    _n, nets, _strip, _added, st = smooth_octolinear_chains([], pcb, clearance=CLR,
+                                                             chamfer_corners=True)
+    elbow = [s for s in pcb.segments if max(s.start_y, s.end_y) < 30.0]
+    check("452-segment net: its elbow is chamfered",
+          st.get('corners_chamfered') == 1 and not has_corner(elbow), st)
+
 TESTS = [test_elbow_chamfered, test_off_by_default_in_the_pass, test_foreign_copper_blocks,
          test_same_net_via_at_corner_pins_it, test_acute_corner_left_alone,
          test_corner_on_a_pad_left, test_stem_on_a_cut_piece_blocks,
          test_chain_continuing_past_a_short_leg,
          test_via_on_a_cut_piece_blocks, test_keep_away_band, test_corner_pass_smooths_nothing,
-         test_plane_finalize_cleanup]
+         test_plane_finalize_cleanup, test_corner_on_a_large_net_chamfered]
 
 if __name__ == '__main__':
     for t in TESTS:
